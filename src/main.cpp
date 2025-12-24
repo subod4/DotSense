@@ -13,3 +13,12 @@ const int mqtt_port = 8883;                     // MQTTS port (TLS)
 const char* mqtt_user = "sudip";       // Replace with your MQTT username (if required)
 const char* mqtt_password = "12345678aA";   // Replace with your MQTT password (if required)
 const char* mqtt_topic = "braille";     // MQTT topic to subscribe to
+
+// ===== TLS/SSL Certificate (Optional - for server verification) =====
+// If your broker uses a self-signed certificate, add it here
+// For testing, you can skip certificate verification (insecure)
+const char* ca_cert = R"EOF(
+-----BEGIN CERTIFICATE-----
+(Add your CA certificate here for secure connection)
+-----END CERTIFICATE-----
+)EOF";
