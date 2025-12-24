@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     
     # Session
     session_timeout: int = 3600  # 1 hour in seconds
+
+    # MQTT
+    mqtt_broker: str = "localhost"
+    mqtt_port: int = 8883
+    mqtt_username: str = ""
+    mqtt_password: str = ""
+    mqtt_topic: str = "braille/letter"
     
     class Config:
         env_file = ".env"

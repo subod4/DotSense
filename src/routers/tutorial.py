@@ -10,6 +10,7 @@ from src.models.schemas import TutorialStartRequest, TutorialControlRequest
 from src.utils.constants import BRAILLE_MAP, ALPHABET
 from src.utils.helpers import explain_letter
 from src.config.settings import get_settings
+from src.core.mqtt import publisher
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -85,6 +86,12 @@ def get_current_step(tutorial_id: str):
         session["last_activity"] = time.time()
     
     letter = ALPHABET[session["index"]]
+    
+    # Send letter to MQTT broker for Braille display
+    if publisher.connected:
+        publisher.publish_letter(letter.upper())
+    else:
+        logger.warning("MQTT not connected, skipping letter publish")
 
     return {
         "letter": letter,
@@ -125,6 +132,12 @@ def next_letter(req: TutorialControlRequest):
         session["last_activity"] = time.time()
 
     letter = ALPHABET[session["index"]]
+    
+    # Send letter to MQTT broker for Braille display
+    if publisher.connected:
+        publisher.publish_letter(letter.upper())
+    else:
+        logger.warning("MQTT not connected, skipping letter publish")
 
     return {
         "letter": letter,

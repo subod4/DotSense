@@ -1,11 +1,11 @@
 """Routers module."""
 
-from src.routers import learning, tutorial, users, esp32, health
+from src.routers import learning, tutorial, users, health, braille
 
 __all__ = [
     "learning",
     "tutorial",
     "users",
-    "esp32",
     "health",
+    "braille",
 ]
