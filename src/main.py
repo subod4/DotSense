@@ -11,7 +11,10 @@ from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 from src.config import get_settings, init_database, close_database
 from src.core.logging import setup_logging
 from src.core.exceptions import DatabaseException
-from src.routers import learning, tutorial, users, esp32, health
+from src.core.logging import setup_logging
+from src.core.exceptions import DatabaseException
+from src.routers import learning, tutorial, users, health, braille
+from src.core.mqtt import publisher as mqtt_publisher
 
 # Get settings
 settings = get_settings()
@@ -27,13 +30,18 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Braille Learning API...")
     await init_database()
+    logger.info("Starting Braille Learning API...")
+    await init_database()
+    mqtt_publisher.connect()
     logger.info("Application startup complete")
     
     yield
     
     # Shutdown
     logger.info("Shutting down application...")
+    logger.info("Shutting down application...")
     await close_database()
+    mqtt_publisher.disconnect()
     logger.info("Application shutdown complete")
 
 
@@ -78,7 +86,8 @@ app.include_router(health.router)         # Root and health endpoints
 app.include_router(learning.router)       # /api/learning/*
 app.include_router(tutorial.router)       # /api/tutorial/*
 app.include_router(users.router)          # /api/users/*
-app.include_router(esp32.router)          # /api/esp32/*
+app.include_router(users.router)          # /api/users/*
+app.include_router(braille.router)        # /api/braille/*
 
 
 # Constants endpoint for frontend
