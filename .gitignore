@@ -53,3 +53,6 @@ Thumbs.db
 .mypy_cache/
 .dmypy.json
 dmypy.json
+/frontend
+ARCHITECTURE.md
+QUICK_START.md
