@@ -71,3 +71,9 @@ const uint8_t braillePatterns[26] = {
   0b101011   // Z: dots 1,3,5,6
 };
 
+// ===== Function Prototypes =====
+void setupWiFi();
+void reconnectMQTT();
+void mqttCallback(char* topic, byte* payload, unsigned int length);
+void updateBrailleServos(uint8_t pattern);
+void setAllServosLowered();
