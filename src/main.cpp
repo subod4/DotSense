@@ -22,3 +22,15 @@ const char* ca_cert = R"EOF(
 (Add your CA certificate here for secure connection)
 -----END CERTIFICATE-----
 )EOF";
+
+// ===== Servo Configuration =====
+// 6 servos representing 6 Braille dots
+// Dot numbering (standard Braille):
+//   1 • • 4
+//   2 • • 5
+//   3 • • 6
+const int SERVO_PINS[6] = {18, 19, 21, 22, 23, 25};  // GPIO pins for servos 1-6
+const int RAISED_ANGLE = 90;    // Servo angle for raised dot (active)
+const int LOWERED_ANGLE = 0;    // Servo angle for lowered dot (inactive)
+
+Servo servos[6];
