@@ -1,0 +1,6 @@
+# Production robots.txt
+User-agent: *
+Allow: /
+
+# Sitemap (update with your domain)
+# Sitemap: https://yourdomain.com/sitemap.xml
