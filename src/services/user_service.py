@@ -24,6 +24,7 @@ class UserService:
         
         user_data = {
             "username": request.username,
+            "age": request.age,
             "email": request.email,
             "full_name": request.full_name,
         }

@@ -56,3 +56,5 @@ dmypy.json
 /frontend
 ARCHITECTURE.md
 QUICK_START.md
+INTEGRATION.md
+TEST_GUIDE.md

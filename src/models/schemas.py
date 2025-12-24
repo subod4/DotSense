@@ -94,6 +94,7 @@ class TutorialResponse(BaseModel):
 class UserCreateRequest(BaseModel):
     """Request to create a new user."""
     username: str = Field(..., min_length=3, max_length=50)
+    age: Optional[int] = Field(None, ge=3, le=100)
     email: Optional[str] = None
     full_name: Optional[str] = None
     
@@ -114,8 +115,9 @@ class UserResponse(BaseModel):
     """User information response."""
     id: str
     username: str
-    email: Optional[str]
-    full_name: Optional[str]
+    age: Optional[int] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
     created_at: datetime
     is_active: bool
 

@@ -98,6 +98,21 @@ class LearningRepository:
                     "confused_with": stats.confused_with,
                     "streak": stats.streak,
                     "best_streak": stats.best_streak,
+                    # SM-2 fields
+                    "easiness_factor": stats.easiness_factor,
+                    "interval": stats.interval,
+                    "repetition": stats.repetition,
+                    "next_review": stats.next_review,
+                    # Trend tracking
+                    "recent_results": stats.recent_results[-20:] if stats.recent_results else [],
+                    "response_times": stats.response_times[-20:] if stats.response_times else [],
+                    # Difficulty estimation
+                    "difficulty": stats.difficulty,
+                    "discrimination": stats.discrimination,
+                    # Session tracking
+                    "session_attempts": stats.session_attempts,
+                    "session_correct": stats.session_correct,
+                    "first_seen": stats.first_seen,
                     "last_updated": datetime.utcnow()
                 }
             },
@@ -126,7 +141,17 @@ class LearningRepository:
             level=progress.get("current_level", "letters_basic"),
             session_count=progress.get("total_sessions", 0),
             total_time_spent=progress.get("total_time_spent", 0.0),
-            achievements=progress.get("achievements", [])
+            achievements=progress.get("achievements", []),
+            # Adaptive fields
+            preferred_pace=progress.get("preferred_pace", "normal"),
+            learning_style=progress.get("learning_style", "balanced"),
+            optimal_session_length=progress.get("optimal_session_length", 15),
+            daily_goal=progress.get("daily_goal", 20),
+            weekly_streak=progress.get("weekly_streak", 0),
+            longest_weekly_streak=progress.get("longest_weekly_streak", 0),
+            last_active_date=progress.get("last_active_date", ""),
+            current_difficulty=progress.get("current_difficulty", 0.5),
+            difficulty_history=progress.get("difficulty_history", []),
         )
         
         # Load per-letter statistics
@@ -140,7 +165,22 @@ class LearningRepository:
                 last_seen=stat_doc.get("last_seen", time.time()),
                 confused_with=stat_doc.get("confused_with", {}),
                 streak=stat_doc.get("streak", 0),
-                best_streak=stat_doc.get("best_streak", 0)
+                best_streak=stat_doc.get("best_streak", 0),
+                # SM-2 fields
+                easiness_factor=stat_doc.get("easiness_factor", 2.5),
+                interval=stat_doc.get("interval", 1),
+                repetition=stat_doc.get("repetition", 0),
+                next_review=stat_doc.get("next_review", time.time()),
+                # Trend tracking
+                recent_results=stat_doc.get("recent_results", []),
+                response_times=stat_doc.get("response_times", []),
+                # Difficulty estimation
+                difficulty=stat_doc.get("difficulty", 0.5),
+                discrimination=stat_doc.get("discrimination", 1.0),
+                # Session tracking
+                session_attempts=stat_doc.get("session_attempts", 0),
+                session_correct=stat_doc.get("session_correct", 0),
+                first_seen=stat_doc.get("first_seen", time.time()),
             )
         
         return user
@@ -155,6 +195,16 @@ class LearningRepository:
                 "total_sessions": user.session_count,
                 "total_time_spent": user.total_time_spent,
                 "achievements": user.achievements,
+                # Adaptive fields
+                "preferred_pace": user.preferred_pace,
+                "learning_style": user.learning_style,
+                "optimal_session_length": user.optimal_session_length,
+                "daily_goal": user.daily_goal,
+                "weekly_streak": user.weekly_streak,
+                "longest_weekly_streak": user.longest_weekly_streak,
+                "last_active_date": user.last_active_date,
+                "current_difficulty": user.current_difficulty,
+                "difficulty_history": user.difficulty_history[-50:] if user.difficulty_history else [],
             }
         )
         
@@ -192,6 +242,61 @@ class LearningRepository:
             }
         )
     
+    async def get_recent_sessions(self, user_id: str, limit: int = 10) -> List[Dict]:
+        """Get recent learning sessions for a user."""
+        cursor = self.db.learning_sessions.find(
+            {"user_id": user_id}
+        ).sort("start_time", -1).limit(limit)
+        
+        sessions = []
+        async for session in cursor:
+            # Calculate duration if session has ended
+            duration_minutes = 0
+            if session.get("end_time") and session.get("start_time"):
+                duration = session["end_time"] - session["start_time"]
+                duration_minutes = round(duration.total_seconds() / 60)
+            
+            # Calculate accuracy
+            total = session.get("total_attempts", 0)
+            correct = session.get("correct_attempts", 0)
+            accuracy = round((correct / total * 100) if total > 0 else 0)
+            
+            # Get unique letters practiced in this session
+            letters_practiced = await self._get_session_letters(str(session["_id"]))
+            
+            sessions.append({
+                "id": str(session["_id"]),
+                "session_type": session.get("session_type", "practice"),
+                "start_time": session.get("start_time").isoformat() if session.get("start_time") else None,
+                "end_time": session.get("end_time").isoformat() if session.get("end_time") else None,
+                "duration_minutes": duration_minutes,
+                "total_attempts": total,
+                "correct_attempts": correct,
+                "accuracy": accuracy,
+                "letters_count": len(letters_practiced),
+            })
+        
+        return sessions
+    
+    async def _get_session_letters(self, session_id: str) -> List[str]:
+        """Get unique letters practiced in a session."""
+        try:
+            # Handle both ObjectId and string session IDs
+            if len(session_id) == 24 and all(c in '0123456789abcdefABCDEF' for c in session_id):
+                match_id = ObjectId(session_id)
+            else:
+                match_id = session_id
+            
+            pipeline = [
+                {"$match": {"session_id": match_id}},
+                {"$group": {"_id": "$letter"}}
+            ]
+            cursor = self.db.letter_attempts.aggregate(pipeline)
+            letters = [doc["_id"] async for doc in cursor]
+            return letters
+        except Exception:
+            return []
+    
     # =========================================================================
     # Letter Attempts
     # =========================================================================
@@ -206,9 +311,22 @@ class LearningRepository:
         session_id: Optional[str] = None
     ) -> str:
         """Record a single letter attempt."""
+        # Handle session_id - only convert to ObjectId if it looks like a valid MongoDB ObjectId
+        parsed_session_id = None
+        if session_id:
+            try:
+                # Only convert if it's a valid 24-char hex string (MongoDB ObjectId format)
+                if len(session_id) == 24 and all(c in '0123456789abcdefABCDEF' for c in session_id):
+                    parsed_session_id = ObjectId(session_id)
+                else:
+                    # Store as string for custom session IDs (e.g., "SESSION-1735035729438")
+                    parsed_session_id = session_id
+            except Exception:
+                parsed_session_id = session_id
+        
         attempt_doc = {
             "user_id": user_id,
-            "session_id": ObjectId(session_id) if session_id else None,
+            "session_id": parsed_session_id,
             "letter": letter,
             "spoken_letter": spoken_letter,
             "is_correct": is_correct,
@@ -217,6 +335,25 @@ class LearningRepository:
         }
         result = await self.db.letter_attempts.insert_one(attempt_doc)
         return str(result.inserted_id)
+    
+    async def get_recent_attempts(self, user_id: str, limit: int = 20) -> List[Dict]:
+        """Get recent letter attempts for a user."""
+        cursor = self.db.letter_attempts.find(
+            {"user_id": user_id}
+        ).sort("timestamp", -1).limit(limit)
+        
+        attempts = []
+        async for attempt in cursor:
+            attempts.append({
+                "id": str(attempt["_id"]),
+                "letter": attempt.get("letter", ""),
+                "spoken_letter": attempt.get("spoken_letter", ""),
+                "is_correct": attempt.get("is_correct", False),
+                "response_time": attempt.get("response_time", 0),
+                "timestamp": attempt.get("timestamp").isoformat() if attempt.get("timestamp") else None,
+            })
+        
+        return attempts
     
     # =========================================================================
     # ESP32 State

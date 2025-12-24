@@ -64,6 +64,50 @@ async def get_user_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/insights/{user_id}")
+async def get_learning_insights(
+    user_id: str,
+    service: LearningService = Depends(get_learning_service)
+):
+    """Get AI-powered learning insights and predictions for a user."""
+    try:
+        insights = await service.get_learning_insights(user_id)
+        return insights
+    except Exception as e:
+        logger.error(f"Error getting insights: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/{user_id}")
+async def get_user_sessions(
+    user_id: str,
+    limit: int = 10,
+    service: LearningService = Depends(get_learning_service)
+):
+    """Get recent learning sessions for a user."""
+    try:
+        sessions = await service.get_recent_sessions(user_id, limit)
+        return sessions
+    except Exception as e:
+        logger.error(f"Error getting sessions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/attempts/{user_id}")
+async def get_user_attempts(
+    user_id: str,
+    limit: int = 20,
+    service: LearningService = Depends(get_learning_service)
+):
+    """Get recent letter attempts for a user."""
+    try:
+        attempts = await service.get_recent_attempts(user_id, limit)
+        return attempts
+    except Exception as e:
+        logger.error(f"Error getting attempts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/reset/{user_id}")
 async def reset_user_progress(
     user_id: str,
