@@ -4,17 +4,29 @@ import { learningService } from '../api/services.js'
 import { calculateAccuracy, calculateSkillScore, calculateMasteryLevel, getMasteryColor, getMasteryLabel, formatTimeUntilReview } from '../utils/learningCalculations.js'
 import { FEEDBACK_MESSAGES, LEARNING_MODES } from '../utils/learningConstants.js'
 import LearningDashboard from '../components/LearningDashboard.jsx'
-
-// Initialize SpeechRecognition
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+import AudioVisualizer from '../components/AudioVisualizer.jsx'
+import useSpeechRecognition from '../hooks/useSpeechRecognition.js'
 
 export default function LearningMode({ user }) {
   const navigate = useNavigate()
+  
+  // Speech recognition hook
+  // Speech recognition hook
+  const {
+    isListening: listening,
+    transcript,
+    error: speechError,
+    noSpeechMessage,
+    toggle: toggleListening,
+    setOnResult,
+    clearError: clearSpeechError,
+    clearNoSpeechMessage,
+  } = useSpeechRecognition()
+
   const [streak, setStreak] = useState(0)
   const [accuracy, setAccuracy] = useState(0)
   const [attempts, setAttempts] = useState(0)
   const [assistantOn, setAssistantOn] = useState(true)
-  const [listening, setListening] = useState(false)
   const [asked, setAsked] = useState('A')
   const [said, setSaid] = useState('')
   const [comparison, setComparison] = useState(null)
@@ -28,147 +40,35 @@ export default function LearningMode({ user }) {
   const [masteryStatus, setMasteryStatus] = useState({})
   const [letterDetails, setLetterDetails] = useState({})
   const [currentLetterStats, setCurrentLetterStats] = useState(null)
-  const [sttSupported, setSttSupported] = useState(true)
-  const [transcript, setTranscript] = useState('')
-  const [retryCount, setRetryCount] = useState(0)
   const [currentMode, setCurrentMode] = useState('guided')
   const [recommendations, setRecommendations] = useState([])
   const [fatigueWarning, setFatigueWarning] = useState(false)
   const [nextReviewIn, setNextReviewIn] = useState('')
   const [newAchievements, setNewAchievements] = useState([])
 
-  const recognitionRef = useRef(null)
-  const isRecognitionActiveRef = useRef(false)
-  const pendingRetryRef = useRef(false)
-  const retryCountRef = useRef(0)
-  const processVoiceResultRef = useRef(null)
   const userRef = useRef(user)
   const startTimeRef = useRef(null)
   const askedRef = useRef('A')
-  const maxRetries = 2
 
   // Keep refs in sync with state
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { startTimeRef.current = startTime }, [startTime])
   useEffect(() => { askedRef.current = asked }, [asked])
 
+  // Sync speech error with component error state
+  useEffect(() => {
+    if (speechError) setError(speechError)
+  }, [speechError])
+
   // Available letters for learning
   const availableLetters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
 
-  // Initialize Speech Recognition
+  // Setup speech recognition result handler
   useEffect(() => {
-    if (!SpeechRecognition) {
-      console.warn('SpeechRecognition API not available')
-      setSttSupported(false)
-      setError('Speech recognition is not supported in this browser. Please use Chrome or Edge.')
-      return
-    }
-
-    try {
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
-      recognition.maxAlternatives = 5
-
-      recognition.onstart = () => {
-        isRecognitionActiveRef.current = true
-        setListening(true)
-        setTranscript('')
-        setError(null)
-      }
-
-      recognition.onresult = (event) => {
-        const results = event.results
-        if (results.length > 0) {
-          const lastResult = results[results.length - 1]
-          const transcriptText = lastResult[0].transcript.trim()
-          setTranscript(transcriptText)
-          retryCountRef.current = 0 // Reset retry count on successful result
-          setRetryCount(0)
-          pendingRetryRef.current = false
-
-          // If final result, process the answer using ref to get latest function
-          if (lastResult.isFinal && processVoiceResultRef.current) {
-            processVoiceResultRef.current(transcriptText, lastResult)
-          }
-        }
-      }
-
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error)
-
-        if (event.error === 'no-speech') {
-          // Check if we should retry
-          if (retryCountRef.current < maxRetries) {
-            retryCountRef.current += 1
-            setRetryCount(retryCountRef.current)
-            pendingRetryRef.current = true
-            // Don't set listening to false - let onend handle the retry
-          } else {
-            // Max retries reached
-            retryCountRef.current = 0
-            setRetryCount(0)
-            pendingRetryRef.current = false
-            setError('No speech detected. Speak louder or closer to the mic.')
-          }
-          return // Let onend handle state cleanup
-        } else if (event.error === 'audio-capture') {
-          setError('No microphone found. Please check your microphone.')
-        } else if (event.error === 'not-allowed') {
-          setError('Microphone access denied. Please allow microphone access.')
-        } else if (event.error === 'aborted') {
-          // User cancelled, no error needed
-          setError(null)
-        } else {
-          setError(`Speech error: ${event.error}`)
-        }
-        pendingRetryRef.current = false
-        retryCountRef.current = 0
-        setRetryCount(0)
-      }
-
-      recognition.onend = () => {
-        isRecognitionActiveRef.current = false
-
-        // Check if we need to retry
-        if (pendingRetryRef.current && recognitionRef.current) {
-          // Small delay before retry to ensure clean state
-          setTimeout(() => {
-            if (pendingRetryRef.current && recognitionRef.current && !isRecognitionActiveRef.current) {
-              try {
-                recognitionRef.current.start()
-              } catch (e) {
-                console.error('Retry failed:', e)
-                pendingRetryRef.current = false
-                retryCountRef.current = 0
-                setRetryCount(0)
-                setListening(false)
-                setError('No speech detected. Tap mic to try again.')
-              }
-            }
-          }, 150)
-        } else {
-          setListening(false)
-        }
-      }
-
-      recognitionRef.current = recognition
-      console.log('Speech recognition initialized successfully')
-
-      return () => {
-        pendingRetryRef.current = false
-        retryCountRef.current = 0
-        if (recognitionRef.current) {
-          recognitionRef.current.abort()
-        }
-      }
-    } catch (err) {
-      console.error('Failed to initialize speech recognition:', err)
-      setSttSupported(false)
-      setError('Failed to initialize speech recognition.')
-    }
-  }, [])
+    setOnResult((text, alternatives) => {
+      processVoiceResult(text, alternatives)
+    })
+  }, [setOnResult])
 
   // Feedback message mapping
   const feedbackMessages = {
@@ -230,18 +130,15 @@ export default function LearningMode({ user }) {
   }
 
   // Process voice recognition result
-  const processVoiceResult = async (transcriptText, result) => {
+  // Process voice recognition result
+  const processVoiceResult = async (transcriptText) => {
     const currentUser = userRef.current
-    const currentStartTime = startTimeRef.current
     const currentAsked = askedRef.current
 
-    if (!currentUser?.id || !currentStartTime) {
-      console.log('processVoiceResult: missing user or startTime', { userId: currentUser?.id, startTime: currentStartTime })
-      return
-    }
+    if (!currentUser?.id) return
 
     // Extract single letter from transcript
-    const guess = extractLetter(transcriptText, result)
+    const guess = extractLetter(transcriptText)
 
     if (!guess) {
       setError(`Couldn't understand "${transcriptText}". Please say a letter clearly.`)
@@ -250,51 +147,32 @@ export default function LearningMode({ user }) {
 
     setSaid(guess)
 
-    const responseTime = (Date.now() - currentStartTime) / 1000
     const correct = guess.toUpperCase() === currentAsked.toUpperCase()
-
     setComparison({ asked: currentAsked, said: guess, correct })
     setAttempts((v) => v + 1)
 
     try {
-      const res = await learningService.recordAttempt({
+      // Calculate response time (seconds), minimum 1
+      const calculatedTime = startTimeRef.current ? Math.round((Date.now() - startTimeRef.current) / 1000) : 1
+      const responseTime = calculatedTime > 0 ? calculatedTime : 1
+
+      const payload = {
         user_id: currentUser.id,
         target_letter: currentAsked.toLowerCase(),
         spoken_letter: guess.toLowerCase(),
         response_time: responseTime,
         session_id: sessionId
-      })
-
-      if (res.feedback) {
-        setReason(getFeedbackMessage(res.feedback))
-
-        // Handle achievements
-        if (res.feedback.achievements && res.feedback.achievements.length > 0) {
-          setNewAchievements(res.feedback.achievements)
-          setTimeout(() => setNewAchievements([]), 5000)
-        }
       }
 
-      if (res.next_review_in) {
-        setNextReviewIn(res.next_review_in)
-      }
+      console.log('Recording attempt payload:', JSON.stringify(payload, null, 2))
 
+      // Record attempt
+      const res = await learningService.recordAttempt(payload)
+
+      if (res.feedback) setReason(getFeedbackMessage(res.feedback))
       if (res.result) {
         setStreak(res.result.streak || 0)
-        if (res.result.accuracy != null) {
-          setAccuracy(Math.round(res.result.accuracy * 100))
-        }
-
-        // Check for fatigue warning
-        if (res.result.fatigue_warning) {
-          setFatigueWarning(true)
-        }
-
-        // Check for new achievements in result
-        if (res.result.new_achievements && res.result.new_achievements.length > 0) {
-          setNewAchievements(res.result.new_achievements)
-          setTimeout(() => setNewAchievements([]), 5000)
-        }
+        setAccuracy(res.result.accuracy != null ? Math.round(res.result.accuracy * 100) : 0)
       }
 
       if (correct) {
@@ -302,83 +180,75 @@ export default function LearningMode({ user }) {
         setTimeout(() => {
           setShowCelebrate(false)
           loadNextLetter()
-        }, 1200)
+        }, 1000)
       } else {
         loadStats()
       }
     } catch (err) {
       console.error('Error recording attempt:', err)
+      if (err.data) {
+        console.error('Error details string:', JSON.stringify(err.data, null, 2))
+      }
+      // Fallback if backend fails
       if (correct) {
         setStreak((v) => v + 1)
-        setShowCelebrate(true)
-        setTimeout(() => {
-          setShowCelebrate(false)
-          loadNextLetter()
-        }, 1200)
-      } else {
-        setStreak(0)
+        setTimeout(loadNextLetter, 1000)
       }
     }
   }
 
   // Extract letter from spoken text
-  const extractLetter = (text, result) => {
+  // Extract letter from spoken text using simple mapping
+  const extractLetter = (text) => {
     const normalized = text.toLowerCase().trim()
 
-    // Direct single letter match
-    if (normalized.length === 1 && /^[a-z]$/.test(normalized)) {
-      return normalized.toUpperCase()
-    }
+    // Direct match
+    if (normalized.length === 1 && /^[a-z]$/.test(normalized)) return normalized.toUpperCase()
 
-    // Common phonetic mappings for letters
+    // Simple phonetic map
     const phoneticMap = {
-      'a': ['a', 'ay', 'hey', 'eh'],
-      'b': ['b', 'be', 'bee', 'bea'],
-      'c': ['c', 'see', 'sea', 'si'],
-      'd': ['d', 'de', 'dee', 'the'],
-      'e': ['e', 'ee', 'he'],
-      'f': ['f', 'ef', 'eff'],
-      'g': ['g', 'gee', 'ji', 'ge'],
-      'h': ['h', 'age', 'aitch', 'ach'],
-      'i': ['i', 'eye', 'ai', 'aye'],
-      'j': ['j', 'jay', 'je', 'jey']
+      'a': ['ay', 'hey', 'eh'],
+      'b': ['bee', 'be'],
+      'c': ['see', 'sea'],
+      'd': ['dee'],
+      'e': ['ee'],
+      'f': ['eff'],
+      'g': ['gee', 'ji'],
+      'h': ['aitch'],
+      'i': ['eye', 'aye'],
+      'j': ['jay'],
+      'k': ['kay'],
+      'l': ['el'],
+      'm': ['em'],
+      'n': ['en'],
+      'o': ['oh'],
+      'p': ['pee'],
+      'q': ['cue', 'queue'],
+      'r': ['ar'],
+      's': ['ess'],
+      't': ['tee', 'tea'],
+      'u': ['you'],
+      'v': ['vee'],
+      'w': ['double u'],
+      'x': ['ex'],
+      'y': ['why'],
+      'z': ['zee', 'zed']
     }
 
-    // Check phonetic matches
     for (const [letter, variants] of Object.entries(phoneticMap)) {
       if (variants.some(v => normalized === v || normalized.includes(v))) {
         return letter.toUpperCase()
       }
     }
 
-    // Check all alternatives from speech recognition
-    if (result && result.length > 1) {
-      for (let i = 1; i < result.length; i++) {
-        const alt = result[i].transcript.toLowerCase().trim()
-        if (alt.length === 1 && /^[a-z]$/.test(alt)) {
-          return alt.toUpperCase()
-        }
-        for (const [letter, variants] of Object.entries(phoneticMap)) {
-          if (variants.some(v => alt === v)) {
-            return letter.toUpperCase()
-          }
-        }
-      }
-    }
-
-    // Last resort: first letter of the word
+    // First char fallback
     const firstChar = normalized.charAt(0)
-    if (/^[a-z]$/.test(firstChar)) {
-      return firstChar.toUpperCase()
-    }
+    if (/^[a-z]$/.test(firstChar)) return firstChar.toUpperCase()
 
     return null
   }
 
-  // Keep processVoiceResultRef updated with the latest function
-  useEffect(() => {
-    processVoiceResultRef.current = processVoiceResult
-  }, [processVoiceResult])
+
 
   useEffect(() => {
     if (user?.id) {
@@ -397,26 +267,19 @@ export default function LearningMode({ user }) {
       const result = await learningService.getStep(user.id, availableLetters)
 
       // Backend returns next_letter field
-      const nextLetter = (result.next_letter || 'A').toUpperCase()
+      // Backend returns next_letter field or direct string
+      let nextLetter = 'A'
+      if (typeof result === 'string') {
+        nextLetter = result
+      } else if (result?.next_letter) {
+        nextLetter = result.next_letter
+      }
+      
+      nextLetter = nextLetter.toUpperCase()
       setAsked(nextLetter)
       setReason(result.reason || 'New letter to practice.')
       setComparison(null)
       setStartTime(Date.now())
-
-      // POST the letter to Braille display API in required format
-      try {
-        await fetch('http://localhost:8000/api/braille/letter', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({ letter: nextLetter }),
-        })
-      } catch (e) {
-        // Optionally handle/log error
-        console.error('Failed to post letter to Braille display:', e)
-      }
 
       // Store mode
       if (result.mode) {
@@ -456,61 +319,22 @@ export default function LearningMode({ user }) {
     window.speechSynthesis.speak(msg)
   }
 
-  function handleMic() {
+  async function handleMic() {
     if (!user?.id) {
       setError('Please log in to use speech recognition.')
       return
     }
-    if (!sttSupported || !recognitionRef.current) {
-      setError('Speech recognition is not available in this browser.')
-      return
-    }
-
     // Set start time if not already set
     if (!startTime) {
       setStartTime(Date.now())
     }
 
     setError(null)
+    clearSpeechError()
+    clearNoSpeechMessage()
 
-    if (listening || isRecognitionActiveRef.current) {
-      // Stop listening if already active
-      pendingRetryRef.current = false
-      retryCountRef.current = 0
-      setRetryCount(0)
-      try {
-        recognitionRef.current.stop()
-      } catch (e) {
-        // Ignore stop errors
-      }
-    } else {
-      // Start listening
-      try {
-        recognitionRef.current.start()
-      } catch (err) {
-        console.error('Error starting recognition:', err)
-        // If already started, stop and restart
-        if (err.name === 'InvalidStateError') {
-          pendingRetryRef.current = false
-          try {
-            recognitionRef.current.stop()
-          } catch (e) {
-            // Ignore stop errors
-          }
-          setTimeout(() => {
-            if (!isRecognitionActiveRef.current) {
-              try {
-                recognitionRef.current.start()
-              } catch (e) {
-                setError('Could not start speech recognition. Please refresh.')
-              }
-            }
-          }, 200)
-        } else {
-          setError('Could not start speech recognition. Please try again.')
-        }
-      }
-    }
+    // Use the hook's toggle function
+    await toggleListening()
   }
 
   async function loadStats() {
@@ -586,6 +410,14 @@ export default function LearningMode({ user }) {
               <p className="font-medium">{error}</p>
             </div>
           ) : null}
+
+          {/* No speech detected message */}
+          {noSpeechMessage && !error && (
+            <div className="p-4 rounded-xl bg-accent-amber/10 text-accent-amber border border-accent-amber/20 flex gap-3 items-center animate-in fade-in slide-in-from-top-2" role="alert">
+              <span className="text-xl">🔇</span>
+              <p className="font-medium">{noSpeechMessage}</p>
+            </div>
+          )}
 
           {/* Fatigue warning */}
           {fatigueWarning && (
@@ -692,16 +524,23 @@ export default function LearningMode({ user }) {
                 }`}
               onClick={handleMic}
               aria-pressed={listening}
-              disabled={loading || !sttSupported}
+              disabled={loading}
             >
               {listening && <div className="absolute inset-0 bg-accent-danger/5 animate-pulse" />}
               <span className={`text-4xl transition-transform duration-300 relative z-10 ${listening ? 'scale-110 animate-bounce' : 'group-hover:scale-110'}`}>
                 {listening ? '🎙️' : '🎤'}
               </span>
               <span className={`text-lg font-bold relative z-10 ${listening ? 'text-accent-danger' : 'text-text'}`}>
-                {listening ? (retryCount > 0 ? `Retrying (${retryCount})...` : 'Listening...') : 'Tap to Speak'}
+                {listening ? 'Recording...' : 'Tap to Speak'}
               </span>
             </button>
+
+            {/* Audio Visualizer */}
+            {listening && (
+              <div className="w-full max-w-sm h-16 rounded-xl overflow-hidden bg-surface-soft/50 border border-surface-border/50">
+                <AudioVisualizer isActive={listening} className="w-full h-full" />
+              </div>
+            )}
 
             {/* Live transcript display */}
             {listening && (
@@ -711,10 +550,8 @@ export default function LearningMode({ user }) {
             )}
 
             <div className="text-sm text-text-muted h-6">
-              {!sttSupported ? (
-                <span className="text-accent-danger">Speech recognition not supported</span>
-              ) : listening ? (
-                retryCount > 0 ? 'Didn\'t catch that, listening again...' : 'Say the letter clearly'
+              {listening ? (
+                'Say the letter clearly'
               ) : (
                 'Tap mic and say the letter'
               )}

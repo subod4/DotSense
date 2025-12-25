@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => ({
   
   server: {
     port: 5173,
-    host: true,
+    host: 'localhost', // Use 'localhost' explicitly for Web Speech API compatibility
   },
 
   build: {

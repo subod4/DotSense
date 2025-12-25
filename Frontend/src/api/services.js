@@ -79,10 +79,19 @@ export const learningService = {
     const response = await api.post('/api/learning/step', {
       body: { user_id: userId, available_letters: availableLetters },
     });
-    // POST only the letter (as a string) to /api/braille/letter
-    if (response && typeof response.letter === 'string') {
+    // Determine the letter to send to Braille display
+    let letterToSend = null;
+    if (typeof response === 'string') {
+        letterToSend = response;
+    } else if (response && typeof response.letter === 'string') {
+        letterToSend = response.letter;
+    } else if (response && typeof response.next_letter === 'string') {
+        letterToSend = response.next_letter;
+    }
+
+    if (letterToSend) {
       try {
-        await api.post('/api/braille/letter', { body: response.letter });
+        await api.post('/api/braille/letter', { body: letterToSend });
       } catch (err) {
         // Optionally handle/log error
       }
