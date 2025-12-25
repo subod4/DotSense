@@ -91,7 +91,7 @@ export const learningService = {
 
     if (letterToSend) {
       try {
-        await api.post('/api/braille/letter', { body: letterToSend });
+        await api.post('/api/braille/letter', { body: { letter: letterToSend } });
       } catch (err) {
         // Optionally handle/log error
       }

@@ -59,7 +59,7 @@ export default function LearningMode({ user }) {
   // Post the current letter to /api/braille/letter whenever it changes
   useEffect(() => {
     if (asked && typeof asked === 'string') {
-      api.post('/api/braille/letter', { body: asked.toLowerCase() })
+      api.post('/api/braille/letter', { body: { letter: asked.toLowerCase() } })
     }
   }, [asked])
 
@@ -69,7 +69,10 @@ export default function LearningMode({ user }) {
   }, [speechError])
 
   // Available letters for learning
-  const availableLetters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+  const availableLetters = [
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
+  ]
 
   // Setup speech recognition result handler
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { api } from '../api/client.js'
 import { tutorialService } from '../api/services.js'
 import DotsView from '../components/DotsView.jsx'
 
@@ -14,6 +15,7 @@ export default function TutorialMode({ userId }) {
   const [attempts, setAttempts] = useState(0)
   const [listening, setListening] = useState(false)
   const [comparison, setComparison] = useState(null)
+  const [showLetterMenu, setShowLetterMenu] = useState(false)
 
   // Start tutorial session on mount
   useEffect(() => {
@@ -129,6 +131,33 @@ export default function TutorialMode({ userId }) {
     }
   }, [tutorialId])
 
+  const handleJump = useCallback(async (letter) => {
+    if (!tutorialId) return
+    setLoading(true)
+    setError('')
+    setShowLetterMenu(false)
+    try {
+      // Update local state first for responsiveness
+      const res = await tutorialService.jump(tutorialId, letter)
+      setStep(res)
+      
+      // Post to Braille display
+      try {
+        await api.post('/api/braille/letter', { body: { letter: letter } })
+      } catch (err) {
+        console.error('Failed to update Braille display:', err)
+      }
+
+      setPracticeMode(false)
+      setAttempts(0)
+      setComparison(null)
+    } catch (e) {
+      setError(e.message || `Failed to jump to letter ${letter}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [tutorialId])
+
   if (loading && !step) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -197,8 +226,17 @@ export default function TutorialMode({ userId }) {
         >
           ← Exit Tutorial
         </button>
-        <div className="px-3 py-1 rounded-full bg-surface-soft border border-surface-border text-sm font-medium text-text-muted">
-          Progress: {progressText}
+        <div className="flex items-center gap-3">
+          <button
+            className="px-4 py-1.5 rounded-full bg-surface-soft hover:bg-surface-border text-sm font-bold text-text transition-colors border border-surface-border"
+            onClick={() => setShowLetterMenu(true)}
+            title="Jump to specific letter"
+          >
+            🔠 Jump to Letter
+          </button>
+          <div className="px-3 py-1.5 rounded-full bg-surface-soft border border-surface-border text-sm font-medium text-text-muted">
+            Progress: {progressText}
+          </div>
         </div>
       </header>
 
@@ -317,6 +355,50 @@ export default function TutorialMode({ userId }) {
           </div>
         </div>
       </div>
+      
+      {/* Letter Jump Menu */}
+      {showLetterMenu && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-surface rounded-3xl border border-surface-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-surface-border flex items-center justify-between bg-surface-soft/50">
+              <h3 className="text-xl font-bold">Select a Letter</h3>
+              <button
+                onClick={() => setShowLetterMenu(false)}
+                className="w-8 h-8 rounded-full bg-surface-soft hover:bg-surface-border text-text-muted hover:text-text grid place-items-center transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                {Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i)).map(letter => {
+                  const isCurrent = step?.letter?.toLowerCase() === letter
+                  return (
+                    <button
+                      key={letter}
+                      onClick={() => handleJump(letter)}
+                      disabled={loading || isCurrent}
+                      className={`
+                        aspect-square rounded-xl text-2xl font-bold flex items-center justify-center transition-all
+                        ${isCurrent 
+                          ? 'bg-primary text-background ring-2 ring-primary ring-offset-2 ring-offset-surface cursor-default' 
+                          : 'bg-surface-soft hover:bg-surface-border text-text hover:scale-110 active:scale-95'}
+                      `}
+                    >
+                      {letter.toUpperCase()}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            
+            <div className="p-4 bg-surface-soft/30 border-t border-surface-border text-center text-sm text-text-muted">
+              Select a letter to jump to that step in the tutorial
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
