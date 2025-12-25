@@ -159,7 +159,18 @@ export const learningService = {
   async getAttempts(userId, limit = 20) {
     return api.get(`/api/learning/attempts/${userId}`, { query: { limit } })
   },
+
+  /**
+   * Update time spent in learning mode
+   * @param {string} userId - User ID
+   * @param {number} seconds - Time spent in seconds
+   * @returns {Promise<Object>} Update result
+   */
+  async updateTimeSpent(userId, seconds) {
+    return api.post('/api/learning/time', { body: { user_id: userId, seconds } })
+  },
 }
+
 
 /**
  * Tutorial Service
