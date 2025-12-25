@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { api } from '../api/client.js'
 import { learningService } from '../api/services.js'
 import { calculateAccuracy, calculateSkillScore, calculateMasteryLevel, getMasteryColor, getMasteryLabel, formatTimeUntilReview } from '../utils/learningCalculations.js'
 import { FEEDBACK_MESSAGES, LEARNING_MODES } from '../utils/learningConstants.js'
@@ -54,6 +55,13 @@ export default function LearningMode({ user }) {
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { startTimeRef.current = startTime }, [startTime])
   useEffect(() => { askedRef.current = asked }, [asked])
+
+  // Post the current letter to /api/braille/letter whenever it changes
+  useEffect(() => {
+    if (asked && typeof asked === 'string') {
+      api.post('/api/braille/letter', { body: asked.toLowerCase() })
+    }
+  }, [asked])
 
   // Sync speech error with component error state
   useEffect(() => {
