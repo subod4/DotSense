@@ -68,6 +68,18 @@ class LearningRepository:
                 "$set": {"last_updated": datetime.utcnow()}
             }
         )
+
+    async def add_learning_time(self, user_id: str, seconds: float) -> None:
+        """Add time to user's total learning time."""
+        await self.db.user_progress.update_one(
+            {"user_id": user_id},
+            {
+                "$inc": {"total_time_spent": seconds},
+                "$set": {"last_updated": datetime.utcnow()}
+            },
+            upsert=True
+        )
+
     
     # =========================================================================
     # Letter Statistics

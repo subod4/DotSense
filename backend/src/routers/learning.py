@@ -5,7 +5,10 @@ import logging
 
 from src.models.schemas import (
     LearningStepRequest,
+    LearningStepRequest,
     AttemptRequest,
+    TimeUpdateRequest,
+
 )
 from src.services import LearningService
 from src.core.dependencies import get_learning_service
@@ -48,6 +51,22 @@ async def record_attempt(
     except Exception as e:
         logger.error(f"Error recording attempt: {e}")
         raise HTTPException(status_code=500, detail="Failed to save attempt")
+
+
+@router.post("/time")
+async def update_time(
+    req: TimeUpdateRequest,
+    service: LearningService = Depends(get_learning_service)
+):
+    """Update time spent in learning mode."""
+    try:
+        result = await service.update_time_spent(req.user_id, req.seconds)
+        return result
+    except Exception as e:
+        logger.error(f"Error updating time: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update time")
+
+
 
 
 @router.get("/stats/{user_id}")

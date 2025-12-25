@@ -63,10 +63,47 @@ export default function LearningMode({ user }) {
     }
   }, [asked])
 
-  // Sync speech error with component error state
   useEffect(() => {
     if (speechError) setError(speechError)
   }, [speechError])
+
+  // Track time spent in learning mode
+  useEffect(() => {
+    if (!user?.id) return
+
+    const SYNC_INTERVAL = 30000 // 30 seconds
+    const startTimeLocal = Date.now()
+    let lastSyncTime = startTimeLocal
+
+    const syncTime = async () => {
+      const now = Date.now()
+      const seconds = (now - lastSyncTime) / 1000
+      if (seconds > 0) {
+        try {
+          // Use keepalive for better reliability on unload
+          await learningService.updateTimeSpent(user.id, seconds)
+          lastSyncTime = now
+        } catch (err) {
+          console.error('Failed to sync time:', err)
+        }
+      }
+    }
+
+    const intervalId = setInterval(syncTime, SYNC_INTERVAL)
+
+    return () => {
+      clearInterval(intervalId)
+      // Attempt one final sync on unmount
+      // Note: React cleanup async execution isn't guaranteed on tab close,
+      // but works for navigation
+      const now = Date.now()
+      const seconds = (now - lastSyncTime) / 1000
+      if (seconds > 0.5) { // Only sync if meaningful time passed
+        learningService.updateTimeSpent(user.id, seconds).catch(console.error)
+      }
+    }
+  }, [user?.id])
+
 
   // Available letters for learning
   const availableLetters = [
@@ -80,6 +117,30 @@ export default function LearningMode({ user }) {
       processVoiceResult(text, alternatives)
     })
   }, [setOnResult])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return
+      
+      switch(e.key.toLowerCase()) {
+        case ' ':
+        case 'enter':
+          e.preventDefault()
+          handleMic()
+          break
+        case 'r':
+          handleReveal()
+          break
+        case 'arrowright':
+           // Maybe skip?
+           break
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [listening, startTime]) // Deps for handleMic access if needed, but handleMic uses refs/state. Better to wrap handleMic in useCallback or use refs.
 
   // Feedback message mapping
   const feedbackMessages = {
@@ -179,8 +240,17 @@ export default function LearningMode({ user }) {
 
       // Record attempt
       const res = await learningService.recordAttempt(payload)
-
-      if (res.feedback) setReason(getFeedbackMessage(res.feedback))
+      
+      const feedbackMsg = res.feedback ? getFeedbackMessage(res.feedback) : null
+      if (feedbackMsg) {
+        setReason(feedbackMsg)
+        // Announce feedback
+        if (assistantOn) {
+            const msg = new SpeechSynthesisUtterance(feedbackMsg)
+            window.speechSynthesis.cancel() // Cancel previous
+            window.speechSynthesis.speak(msg)
+        }
+      }
       if (res.result) {
         setStreak(res.result.streak || 0)
         setAccuracy(res.result.accuracy != null ? Math.round(res.result.accuracy * 100) : 0)

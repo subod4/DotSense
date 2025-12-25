@@ -233,7 +233,14 @@ export default function Stats({ user }) {
               </div>
             </div>
 
-            <div className="h-4 bg-surface-soft rounded-full overflow-hidden flex">
+            <div 
+              className="h-4 bg-surface-soft rounded-full overflow-hidden flex"
+              role="progressbar"
+              aria-valuenow={Math.round((lettersByMastery.mastered.length / 26) * 100)}
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-label={`Mastery progress: ${lettersByMastery.mastered.length} out of 26 letters mastered`}
+            >
               <div
                 className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-1000 ease-out relative"
                 style={{ width: `${Math.min(100, (lettersByMastery.mastered.length / 26) * 100)}%` }}

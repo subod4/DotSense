@@ -167,3 +167,9 @@ class HealthCheckResponse(BaseModel):
     users_with_progress: int
     stateless: bool
     scalable: bool
+
+
+class TimeUpdateRequest(BaseModel):
+    """Request model for updating learning time."""
+    user_id: str = Field(..., min_length=1)
+    seconds: float = Field(..., ge=0, description="Time spent in seconds")

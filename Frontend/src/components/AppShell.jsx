@@ -20,6 +20,9 @@ function TabLink({ to, label }) {
 export default function AppShell({ user, onLogout, children }) {
   return (
     <div className="min-h-screen bg-background text-text selection:bg-primary/20 selection:text-primary">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-4 py-2 bg-primary text-background font-bold rounded-lg shadow-lg">
+        Skip to content
+      </a>
       <header className="flex items-center justify-between px-6 py-4 bg-surface/50 border-b border-surface-border backdrop-blur-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="w-30 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 grid place-items-center text-primary font-bold shadow-inner border border-surface-border">

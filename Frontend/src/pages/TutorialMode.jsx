@@ -158,6 +158,35 @@ export default function TutorialMode({ userId }) {
     }
   }, [tutorialId])
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return
+      
+      switch(e.key.toLowerCase()) {
+        case ' ':
+          e.preventDefault()
+          if (practiceMode) {
+             handleMic()
+          } else {
+             handlePractice()
+          }
+          break
+        case 'arrowright':
+            if (!loading && step?.progress?.current <= step?.progress?.total) handleNext()
+            break
+        case 'arrowleft':
+            if (!loading && step?.progress?.current > 1) handlePrev()
+            break
+        case 'r':
+            handleRepeat()
+            break
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [practiceMode, loading, step, handleMic, handlePractice, handleNext, handlePrev, handleRepeat])
+
   if (loading && !step) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
