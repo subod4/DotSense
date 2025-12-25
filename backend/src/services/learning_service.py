@@ -732,6 +732,12 @@ class LearningService:
             "feedback": feedback,
             "next_review_in": self._format_next_review(stats),
         }
+
+    async def update_time_spent(self, user_id: str, seconds: float) -> Dict:
+        """Update total time spent by user."""
+        await self.repository.add_learning_time(user_id, seconds)
+        return {"status": "updated", "added_seconds": seconds}
+
     
     def _check_achievements(self, user: UserState, stats: LetterStats) -> List[Dict]:
         """Check and award new achievements."""
