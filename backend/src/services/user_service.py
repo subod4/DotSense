@@ -29,7 +29,18 @@ class UserService:
             "full_name": request.full_name,
         }
         
-        user_id = await self.repository.create_user(user_data)
+        # Remove keys with None values to avoid unique index issues with null
+        user_data = {k: v for k, v in user_data.items() if v is not None}
+        
+        try:
+            user_id = await self.repository.create_user(user_data)
+        except Exception as e:
+            # Check for duplicate key error (if repository doesn't wrap it)
+            if "duplicate key error" in str(e):
+                from src.core.exceptions import UserAlreadyExistsException
+                raise UserAlreadyExistsException(f"User with this email already exists")
+            raise e
+            
         user = await self.repository.get_user_by_id(user_id)
         
         logger.info(f"Created new user: {request.username}")
