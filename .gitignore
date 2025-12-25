@@ -53,7 +53,7 @@ Thumbs.db
 .mypy_cache/
 .dmypy.json
 dmypy.json
-/frontend
+# /frontend - REMOVED: was causing issues on Windows (case-insensitive)
 ARCHITECTURE.md
 QUICK_START.md
 INTEGRATION.md
