@@ -76,9 +76,18 @@ export const learningService = {
    * @returns {Promise<Object>} Next learning step
    */
   async getStep(userId, availableLetters) {
-    return api.post('/api/learning/step', {
+    const response = await api.post('/api/learning/step', {
       body: { user_id: userId, available_letters: availableLetters },
-    })
+    });
+    // POST only the letter (as a string) to /api/braille/letter
+    if (response && typeof response.letter === 'string') {
+      try {
+        await api.post('/api/braille/letter', { body: response.letter });
+      } catch (err) {
+        // Optionally handle/log error
+      }
+    }
+    return response;
   },
 
   /**
@@ -153,7 +162,14 @@ export const tutorialService = {
    * @returns {Promise<Object>} Tutorial session with first letter data
    */
   async start(userId) {
-    return api.post('/api/tutorial/start', { body: { user_id: userId } })
+    const response = await api.post('/api/tutorial/start', { body: { user_id: userId } });
+    // POST the response to /api/braille/letter
+    try {
+      await api.post('/api/braille/letter', { body: response });
+    } catch (err) {
+      // Optionally handle/log error
+    }
+    return response;
   },
 
   /**

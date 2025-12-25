@@ -16,18 +16,24 @@ export default function DotsView({ dots, large = false }) {
   const description =
     raised.length === 0 ? 'No braille dots raised' : `Braille dots raised: ${raised.join(', ')}`
 
-  const sizeClass = large ? 'w-8 h-8 md:w-10 md:h-10' : 'w-5 h-5 md:w-6 md:h-6';
-  const gapClass = large ? 'gap-x-4 gap-y-4 md:gap-x-6 md:gap-y-6' : 'gap-x-3 gap-y-3';
+  // Enhanced size and gap for better visibility
+  const sizeClass = large ? 'w-12 h-12 md:w-14 md:h-14' : 'w-8 h-8 md:w-10 md:h-10';
+  const gapClass = large ? 'gap-x-6 gap-y-6 md:gap-x-8 md:gap-y-8' : 'gap-x-4 gap-y-4';
 
   return (
-    <div className={`grid grid-cols-2 ${gapClass} p-4 bg-surface-soft/50 rounded-xl border border-surface-border inline-flex items-center justify-center`} role="img" aria-label={description}>
+    <div
+      className={`grid grid-cols-2 ${gapClass} p-8 bg-white rounded-3xl border-4 border-blue-200 shadow-2xl inline-flex items-center justify-center`}
+      role="img"
+      aria-label={description}
+    >
       {positions.map((v, i) => (
         <div
           key={i}
-          className={`${sizeClass} rounded-full transition-all duration-300 ${Boolean(v)
-            ? 'bg-primary border-transparent shadow-[0_0_15px_rgba(37,99,235,0.4)] scale-110'
-            : 'bg-surface border-2 border-surface-border opacity-40 shadow-inner'
-            }`}
+          className={`${sizeClass} rounded-full transition-all duration-300 flex items-center justify-center
+            ${Boolean(v)
+              ? 'bg-blue-600 border-4 border-blue-500 shadow-[0_0_30px_8px_rgba(37,99,235,0.25)] scale-110'
+              : 'bg-white border-2 border-blue-200 shadow-inner'}
+          `}
           aria-hidden="true"
         />
       ))}

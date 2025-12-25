@@ -397,10 +397,26 @@ export default function LearningMode({ user }) {
       const result = await learningService.getStep(user.id, availableLetters)
 
       // Backend returns next_letter field
-      setAsked((result.next_letter || 'A').toUpperCase())
+      const nextLetter = (result.next_letter || 'A').toUpperCase()
+      setAsked(nextLetter)
       setReason(result.reason || 'New letter to practice.')
       setComparison(null)
       setStartTime(Date.now())
+
+      // POST the letter to Braille display API in required format
+      try {
+        await fetch('http://localhost:8000/api/braille/letter', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ letter: nextLetter }),
+        })
+      } catch (e) {
+        // Optionally handle/log error
+        console.error('Failed to post letter to Braille display:', e)
+      }
 
       // Store mode
       if (result.mode) {
@@ -621,7 +637,7 @@ export default function LearningMode({ user }) {
               >
                 {asked}
               </div>
-              <p className="text-text-muted font-medium">{reason}</p>
+              <p className="text-text-muted font-medium">{typeof reason === 'string' ? reason : reason?.message || JSON.stringify(reason)}</p>
             </div>
 
             {/* Current letter stats */}
@@ -737,7 +753,9 @@ export default function LearningMode({ user }) {
               <div className="font-bold text-text-muted uppercase text-xs tracking-wider">Recommended</div>
               <div className="flex flex-wrap gap-2">
                 {recommendations.map((rec, i) => (
-                  <span key={i} className="px-2 py-1 rounded-md bg-white/5 text-xs text-text-muted">{rec}</span>
+                  <span key={i} className="px-2 py-1 rounded-md bg-white/5 text-xs text-text-muted">
+                    {typeof rec === 'string' ? rec : rec?.message || JSON.stringify(rec)}
+                  </span>
                 ))}
               </div>
             </div>

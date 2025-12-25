@@ -5,6 +5,7 @@ import Field from '../components/Field.jsx'
 import ErrorBanner from '../components/ErrorBanner.jsx'
 import JsonView from '../components/JsonView.jsx'
 import DotsView from '../components/DotsView.jsx'
+import { useEffect } from 'react'
 
 function parseLetters(input) {
   const raw = (input || '').toLowerCase()
@@ -31,6 +32,14 @@ export default function Learning() {
 
   const [step, setStep] = useState(null)
 
+  // Post the character shown in learn page to /api/braille/letter whenever it changes
+  
+  useEffect(() => {
+    if (step?.next_letter && typeof step.next_letter === 'string') {
+      api.post('/api/braille/letter', { body: step.next_letter });
+    }
+  }, [step?.next_letter]);
+
   const [targetLetter, setTargetLetter] = useState('')
   const [spokenLetter, setSpokenLetter] = useState('')
   const [responseTime, setResponseTime] = useState(1.2)
@@ -53,13 +62,7 @@ export default function Learning() {
       setStep(res)
       setTargetLetter(res?.next_letter || '')
 
-      // Optional: refresh ESP32 dots for this user
-      try {
-        const dots = await api.get('/api/esp32/learning/dots', { query: { user_id: userId } })
-        setStep((prev) => ({ ...(prev || {}), esp32_dots: dots?.dots }))
-      } catch {
-        // ignore if not set yet
-      }
+      // ...existing code...
     } catch (e) {
       setError(e)
     } finally {
@@ -70,7 +73,7 @@ export default function Learning() {
   async function recordAttempt() {
     setLoading(true)
     setError(null)
-    try {
+  try {
       const res = await api.post('/api/learning/attempt', {
         body: {
           user_id: userId,
@@ -166,7 +169,7 @@ export default function Learning() {
         <div className="srOnly" aria-live="polite" aria-atomic="true">
           {loading ? 'Loading learning data' : attempt ? 'Attempt recorded' : step ? 'New step loaded' : ''}
         </div>
-        <ErrorBanner error={error} />
+        <ErrorBanner error={typeof error === 'string' ? error : error?.message || JSON.stringify(error)} />
 
         <div className="card" style={{ marginTop: 12 }}>
           <h2>Step</h2>
@@ -201,7 +204,7 @@ export default function Learning() {
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <div style={{ fontSize: 42, fontWeight: 700 }}>{step?.next_letter ?? '—'}</div>
                 <div>
-                  <small className="muted">Reason: {step?.reason ?? '—'}</small>
+                  <small className="muted">Reason: {typeof step?.reason === 'string' ? step?.reason : step?.reason?.message || '—'}</small>
                 </div>
               </div>
             </div>
@@ -217,10 +220,7 @@ export default function Learning() {
                   <small className="muted">/api/esp32/letter</small>
                   <DotsView dots={step?.target_dots} />
                 </div>
-                <div>
-                  <small className="muted">/api/esp32/learning/dots</small>
-                  <DotsView dots={step?.esp32_dots} />
-                </div>
+                {/* esp32_dots removed */}
               </div>
             </div>
           </div>

@@ -22,16 +22,16 @@ export default function AppShell({ user, onLogout, children }) {
     <div className="min-h-screen bg-background text-text selection:bg-primary/20 selection:text-primary">
       <header className="flex items-center justify-between px-6 py-4 bg-surface/50 border-b border-surface-border backdrop-blur-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 grid place-items-center text-primary font-bold shadow-inner border border-surface-border">
-            <span className="text-xl">⠿</span>
+          <div className="w-30 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 grid place-items-center text-primary font-bold shadow-inner border border-surface-border">
+            <img src="/logo.png" alt="DotSense Logo" className="w-30 h-14 object-full" />
           </div>
           <div>
-            <div className="font-extrabold text-lg tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-              Braille
+            {/* <div className="font-extrabold text-lg tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+              Dot
             </div>
             <div className="text-xs text-text-muted font-medium tracking-wide uppercase mt-0.5">
-              Academy
-            </div>
+              Sense
+            </div> */}
           </div>
         </div>
 
