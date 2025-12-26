@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client.js'
 import { tutorialService } from '../api/services.js'
 import DotsView from '../components/DotsView.jsx'
+import useSpeechRecognition from '../hooks/useSpeechRecognition.js'
+import AudioVisualizer from '../components/AudioVisualizer.jsx'
 
 export default function TutorialMode({ userId }) {
   const navigate = useNavigate()
@@ -13,9 +15,23 @@ export default function TutorialMode({ userId }) {
 
   const [practiceMode, setPracticeMode] = useState(false)
   const [attempts, setAttempts] = useState(0)
-  const [listening, setListening] = useState(false)
   const [comparison, setComparison] = useState(null)
   const [showLetterMenu, setShowLetterMenu] = useState(false)
+
+  // Speech recognition hook
+  const {
+    isListening: listening,
+    transcript,
+    error: speechError,
+    toggle: toggleListening,
+    setOnResult,
+    clearError: clearSpeechError,
+  } = useSpeechRecognition()
+
+  // Sync speech error to local error state
+  useEffect(() => {
+    if (speechError) setError(speechError)
+  }, [speechError])
 
   // Start tutorial session on mount
   useEffect(() => {
@@ -64,23 +80,72 @@ export default function TutorialMode({ userId }) {
 
   function handleMic() {
     if (!step?.letter) return
-    setListening(true)
     setError('')
+    clearSpeechError()
+    toggleListening()
+  }
 
-    // Simulated speech recognition (replace with real Web Speech API if needed)
-    setTimeout(() => {
-      const guessPool = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-      const said = guessPool[Math.floor(Math.random() * guessPool.length)]
-      const correct = said.toLowerCase() === step.letter.toLowerCase()
-      setComparison({ asked: step.letter.toUpperCase(), said: said.toUpperCase(), correct })
-      setAttempts((v) => v + 1)
-      if (!correct) {
-        setError('We could not match that. Try again and speak clearly.')
-      } else {
-        setError('')
+  // Process voice recognition result
+  const processVoiceResult = useCallback((text) => {
+    if (!step?.letter) return
+
+    // Extract letter from transcript
+    const guess = extractLetter(text)
+    
+    if (!guess) {
+        setError(`Couldn't understand "${text}". Please say a letter clearly.`)
+        return
+    }
+
+    const currentLetter = step.letter.toUpperCase()
+    const correct = guess.toUpperCase() === currentLetter
+    
+    setComparison({ asked: currentLetter, said: guess.toUpperCase(), correct })
+    setAttempts((v) => v + 1)
+    
+    if (!correct) {
+      setError('We could not match that. Try again and speak clearly.')
+    } else {
+      setError('')
+      // Optional: Play success sound or similar feedback can be added here
+      const msg = new SpeechSynthesisUtterance('Correct!')
+      window.speechSynthesis.speak(msg)
+    }
+  }, [step])
+
+  // Setup speech recognition result handler
+  useEffect(() => {
+    setOnResult((text) => {
+      processVoiceResult(text)
+    })
+  }, [setOnResult, processVoiceResult])
+
+  // Extract letter from spoken text (Simple phonetic map)
+  const extractLetter = (text) => {
+    const normalized = text.toLowerCase().trim()
+    // Direct match
+    if (normalized.length === 1 && /^[a-z]$/.test(normalized)) return normalized.toUpperCase()
+
+    // Simple phonetic map
+    const phoneticMap = {
+      'a': ['ay', 'hey', 'eh'], 'b': ['bee', 'be'], 'c': ['see', 'sea'], 'd': ['dee'],
+      'e': ['ee'], 'f': ['eff'], 'g': ['gee', 'ji'], 'h': ['aitch'], 'i': ['eye', 'aye'],
+      'j': ['jay'], 'k': ['kay'], 'l': ['el'], 'm': ['em'], 'n': ['en'], 'o': ['oh'],
+      'p': ['pee'], 'q': ['cue', 'queue'], 'r': ['ar'], 's': ['ess'], 't': ['tee', 'tea'],
+      'u': ['you'], 'v': ['vee'], 'w': ['double u'], 'x': ['ex'], 'y': ['why'], 'z': ['zee', 'zed']
+    }
+
+    for (const [letter, variants] of Object.entries(phoneticMap)) {
+      if (variants.some(v => normalized === v || normalized.includes(v))) {
+        return letter.toUpperCase()
       }
-      setListening(false)
-    }, 1100)
+    }
+    
+    // First char fallback
+    const firstChar = normalized.charAt(0)
+    if (/^[a-z]$/.test(firstChar)) return firstChar.toUpperCase()
+
+    return null
   }
 
   const handleNext = useCallback(async () => {
@@ -311,7 +376,7 @@ export default function TutorialMode({ userId }) {
           ) : (
             <div className="space-y-6 max-w-lg mx-auto text-center">
               <button
-                className={`w-full p-8 rounded-full border-2 transition-all duration-300 flex flex-col items-center justify-center gap-3 group
+                className={`w-full p-8 rounded-full border-2 transition-all duration-300 flex flex-col items-center justify-center gap-3 group relative overflow-hidden
                   ${listening
                     ? 'border-accent-danger bg-accent-danger/10 shadow-[0_0_30px_rgba(248,113,113,0.2)] scale-105'
                     : 'border-surface-border bg-surface-soft hover:border-primary/50 hover:bg-surface-soft/80'
@@ -320,13 +385,28 @@ export default function TutorialMode({ userId }) {
                 aria-pressed={listening}
                 disabled={loading}
               >
-                <span className={`text-4xl transition-transform duration-300 ${listening ? 'scale-110 animate-pulse' : 'group-hover:scale-110'}`}>
+                {listening && <div className="absolute inset-0 bg-accent-danger/5 animate-pulse" />}
+                <span className={`text-4xl transition-transform duration-300 relative z-10 ${listening ? 'scale-110 animate-pulse' : 'group-hover:scale-110'}`}>
                   {listening ? '🎙️' : '🎤'}
                 </span>
-                <span className={`text-lg font-bold ${listening ? 'text-accent-danger' : 'text-text'}`}>
+                <span className={`text-lg font-bold relative z-10 ${listening ? 'text-accent-danger' : 'text-text'}`}>
                   {listening ? 'Listening...' : 'Tap to Speak'}
                 </span>
+                
+                {/* Visualizer overlay */}
+                {listening && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-32 h-8 pointer-events-none">
+                     <AudioVisualizer isActive={listening} barCount={20} />
+                  </div>
+                )}
               </button>
+              
+              {/* Live transcript */}
+              {listening && (
+                <div className="h-6 text-center text-primary font-bold animate-pulse">
+                  {transcript ? `"${transcript}"` : '...'}
+                </div>
+              )}
 
               <div className="text-text-muted">
                 Say <span className="font-bold text-text">"{step?.letter?.toUpperCase()}"</span>, "Next", or "Back"
